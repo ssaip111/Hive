@@ -1,0 +1,46 @@
+In addition to the primitive data types, Hive also supports the complex data types of arrays, maps, structs, and uniontypes.(The keyword union is reserved for concatenating tables in queries, so the column type of "union" is called uniontype.) These types allow denormalized schemas that are better aligned with the Map/Reduce query engine.
+We will calculate the top modal winners using an athlete table with array types.
+First, we create our table and load data into it. This table has four array columns:
+----------------------------------------------------------------------------------------------------------------------------------------------
+
+hive> create table if not exists athlete(
+       name string, id string, demonstration_events_competed_in array<string>,
+       demonstration_medals_won array<string>, country array<string>,
+       medals_won array<string>) row format delimited fields terminated by '\t'
+       collection items terminated by ',' ;
+
+hive> load data local inpath 'data/olympic_athlete.tsv' overwrite into table athlete ;
+----------------------------------------------------------------------------------------------------------------------------------------------
+The next query verifies that we have correctly loaded data into this table:
+    > select * from athlete limit 2;
+
+----------------------------------------------------------------------------------------------------------------------------------------------
+Using complex types enables us to easily find the athletes who have won the most Olympic medals. In this example, we use the size function to compute the number of medals won by each athlete:
+
+hive> select name, size(medals_won) as num_medals
+     from athlete
+     where size(medals_won) >= 10
+     order by num_medals desc, name asc ;
+----------------------------------------------------------------------------------------------------------------------------------------------
+ In the case above, both the calculation of the number of medals and the filter on that value operate on a single row at a time and can be performed entirely within the mapper. The only data sent to the reducers are the names and medal counts of athletes with at least 10 medals, which is a small amount of data compared to the entire athlete table.
+By contrast, if we were using a typical normalized schema with athlete, medal, and an athlete-medal relationship table, we would need to send the complete athlete and athlete-medal tables to at least one reducer step to join them (assuming that both tables are large). Moving, sorting, and reducing this data will be a much more expensive operation than processing the denormalized data in the mappers.
+----------------------------------------------------------------------------------------------------------------------------------------------
+With flat files in HDFS and Map/Reduce as its execution engine, Hive often works more efficiently on denormalized data. In this case, both the calculation of the number of medals and the filter on that value operate on a single row at a time and can be performed entirely within the mapper. The only data sent to the reducers are the names and medal counts of athletes with at least 10 medals, which is a small amount of data compared to the entire athlete table.
+
+By contrast, if we were using a typical normalized schema with athlete, medal, and an athlete-medal relationship table, we would need to send the complete athlete and athlete-medal tables to at least one reducer step to join them (assuming that both tables are large). Moving, sorting, and reducing this data will be a much more expensive operation than processing the denormalized data in the mappers.
+----------------------------------------------------------------------------------------------------------------------------------------------
+When reading data files, Hive expects structs and uniontypes to be formatted as fixed length arrays. For structs, the items in the array correspond to the fields of the struct. For uniontypes, the first item in the array should be the index of the type, and the second item should be the value.
+----------------------------------------------------------------------------------------------------------------------------------------------
+hive> create table misc_data_tbl(s_data struct<a: string, b: string, c: int>, u_data uniontype<string, int, double>) row format delimited fields terminated by '\t' collection items terminated by ',' ;
+hive> create table misc_data_tbl(
+       s_data struct<a: string, b: string, c: int>,
+       u_data uniontype<string, int, double>)
+     row format delimited
+       fields terminated by '\t'
+       collection items terminated by ',' ;
+----------------------------------------------------------------------------------------------------------------------------------------------
+hive> load data local inpath 'data/misc_data.tsv'
+     overwrite into table athlete ;
+hive> select * from misc_data_tbl;
+
+----------------------------------------------------------------------------------------------------------------------------------------------
