@@ -1,0 +1,106 @@
+----------------------------------------------------------------------
+First, we specify the maximum percentage of mapper memory that Hive should allow a "map join" operation to use:
+hive> set hive.mapjoin.localtask.max.memory.usage = 0.99 ;
+======================================================================
+This next setting specifies that Hive should use a target table's bucketing specification when determining how to configure the number of mappers and reducers using in a query:
+hive> set hive.enforce.bucketing = true ;
+----------------------------------------------------------------------
+Next, we create the athlete table and load our source data into it as follows:
+======================================================================
+hive> create table if not exists athlete(
+   name string,
+   id string,
+   demonstration_events_competed_in array<string>,
+   demonstration_medals_won array<string>,
+   country array<string>,
+   medals_won array<string>)
+ clustered by (name) into 2 buckets
+ row format delimited
+   fields terminated by '\t'
+   collection items terminated by ',' ;
+
+hive> load data local inpath 'data/olympic_athlete.tsv' overwrite into table athlete ;
+----------------------------------------------------------------------
+When loading data into a table, Hive simply copies the local file into HDFS. The easiest way to ensure that data is correctly loaded into a bucketed table is to instruct Hive to copy our original table into a bucketed table:
+hive> create table if not exists athlete_bucketed(
+   name string,
+   id string,
+   demonstration_events_competed_in array<string>,
+   demonstration_medals_won array<string>,
+   country array<string>,
+   medals_won array<string>)
+ clustered by (name) into 2 buckets ;
+
+hive> insert overwrite table athlete_bucketed select * from athlete ;
+======================================================================
+Similarly, we load the original athlete affiliation data and copy it into another bucketed table:
+
+hive> create table if not exists athlete_affiliation(
+   name string,
+   id string,
+   athlete string,
+   country string,
+   olympics string,
+   sport string)
+ row format delimited
+   fields terminated by '\t'
+   collection items terminated by ',' ;
+
+hive> load data local inpath 'data/olympic_athlete_affiliation.tsv' overwrite into table athlete_affiliation ;
+----------------------------------------------------------------------
+======================================================================
+Similarly, we load the original athlete affiliation data and copy it into another bucketed table:
+hive> create table if not exists athlete_affiliation_bucketed(
+   name string,
+   id string,
+   athlete string,
+   country string,
+   olympics string,
+   sport string)
+ clustered by (athlete) into 4 buckets ;
+
+hive> insert overwrite table athlete_affiliation_bucketed select * from athlete_affiliation ;
+----------------------------------------------------------------------
+Because both the athlete and athlete_affiliation tables are bucketed, we can now perform a bucketed join by setting the following three properties.
+set hive.optimize.bucketmapjoin = true ;
+set hive.optimize.bucketmapjoin.sortedmerge = true ;
+set hive.input.format = org.apache.hadoop.hive.ql.io.BucketizedHiveInputFormat;
+
+hive> select
+       l.name,
+       size(l.medals_won),
+       r.country,
+       collect_set(r.olympics)
+     from athlete_bucketed l
+       join athlete_affiliation_bucketed r 
+       on l.name = r.athlete
+     group by l.name, size(l.medals_won), r.country
+     order by name asc
+     limit 5 ;
+
+You should get output like:
+..... Daumain	1	France	["1900 Summer Olympics"]
+A Lamusi	0	China	["2012 Summer Olympics"]
+A.G. Kruger	0	United States of America	["2012 Summer Olympics"]
+Aarik Wilson	0	United States of America	["2008 Summer Olympics"]
+Aaron Brown	0	Canada	["2012 Summer Olympics"]
+
+======================================================================
+----------------------------------------------------------------------
+======================================================================
+----------------------------------------------------------------------
+======================================================================
+----------------------------------------------------------------------
+======================================================================
+----------------------------------------------------------------------
+======================================================================
+----------------------------------------------------------------------
+======================================================================
+----------------------------------------------------------------------
+======================================================================
+----------------------------------------------------------------------
+======================================================================
+----------------------------------------------------------------------
+======================================================================
+----------------------------------------------------------------------
+======================================================================
