@@ -1,0 +1,24 @@
+In this recipe, we will learn how Hive supports uses cases, such as periodic ETL jobs, by rerunning the top athletes query in batch mode from the command line. This support allows us to use external tools to start Hive jobs and capture their output.
+======================================
+Create the init.hql file in the current directory. This file sets up the database, specifies our Hive settings, and creates our input table.
+
+Create the script.hql file in the current directory. This file creates output table in the database ch3, and populate the output table based on given queries.
+
+
+-------------------------------------------------------------------
+Use non-interactive of hive command
+-------------------------------------------------------------------
+We start by running our initialization and query scripts from the command line:
+hive -v --hivevar threshold=10 -i init.hql -f script.hql
+-------------------------------------------------------------------
+
+We write the header of our top_athletes table to a file using the standard cut and paste Unix tools:
+
+hive -S -e "use ch3; describe top_athletes;" | cut -f 1 | paste -s - > output.tsv
+======================================
+We write the data from the top_athletes table to our output file by executing explicit SQL statements:
+
+hive -S -e "use ch3; select * from top_athletes ;" >> output.tsv
+======================================
+We can verify the contents of our file by simply using the cat command:
+cat output.tsv
